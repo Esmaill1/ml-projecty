@@ -32,30 +32,35 @@ canvas_result = st_canvas(
 
 # Handle digit recognition
 if canvas_result.image_data is not None:
-    img = canvas_result.image_data.astype(np.uint8)
+    try:
+        img = canvas_result.image_data.astype(np.uint8)
 
-    # Convert RGBA to grayscale
-    img = Image.fromarray(img).convert('L')
-    img = np.array(img)
+        # Convert RGBA to grayscale
+        img = Image.fromarray(img).convert('L')
+        img = np.array(img)
 
-    # Resize and normalize
-    img = cv2.resize(img, (28, 28))
-    img = img / 255.0
-    img = 1 - img  # Invert colors: white bg, black digits
-    img_input = img.reshape(1, 28, 28, 1)
+        # Resize and normalize
+        img = cv2.resize(img, (28, 28))
+        img = img / 255.0
+        img = 1 - img  # Invert colors: white bg, black digits
+        img_input = img.reshape(1, 28, 28, 1)
 
-    # Only predict if the user actually drew something
-    if np.count_nonzero(img > 0.1) > 10:
-        prediction = model.predict(img_input)
-        digit = str(np.argmax(prediction))
-        st.session_state.typed_digits += digit
+        # Only predict if the user actually drew something
+        if np.count_nonzero(img > 0.1) > 10:
+            prediction = model.predict(img_input, verbose=0)
+            digit = str(np.argmax(prediction))
+            st.session_state.typed_digits += digit
 
-        st.write(f"Typed so far: `{st.session_state.typed_digits}`")
+            st.success(f"✅ Recognized: {digit}")
+            st.write(f"Typed so far: `{st.session_state.typed_digits}`")
 
-        # Clear canvas by changing key and rerunning
-        st.session_state.canvas_key += 1
-        st.rerun()
-    else:
+            # Clear canvas by changing key and rerunning
+            st.session_state.canvas_key += 1
+            st.rerun()
+        else:
+            st.write(f"Typed so far: `{st.session_state.typed_digits}`")
+    except Exception as e:
+        st.warning(f"Could not process image: {str(e)}")
         st.write(f"Typed so far: `{st.session_state.typed_digits}`")
 else:
     st.write(f"Typed so far: `{st.session_state.typed_digits}`")
