@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Math Tutor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --secondary: #E5E7EB;
+            --background: #F9FAFB;
+            --text: #111827;
+            --success: #10B981;
+            --error: #EF4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: #FFFFFF;
+            border: 1px solid #E5E7EB;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            max-width: 450px;
+            width: 90%;
+        }
+
+        h1 {
+            font-weight: 800;
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+
+        .problem-text {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #374151;
+        }
+
+        .canvas-container {
+            position: relative;
+            margin: 20px auto;
+            width: 200px;
+            height: 200px;
+            background: #FFFFFF;
+            border: 2px dashed #D1D5DB;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .status-msg {
+            min-height: 24px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            transition: opacity 0.3s ease;
+            opacity: 0;
+        }
+
+        .status-msg.show {
+            opacity: 1;
+        }
+
+        .success { color: var(--success); }
+        .error { color: var(--error); }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #4338CA;
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary);
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background-color: #D1D5DB;
+        }
+
+        .loading {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 15px;
+            height: 15px;
+            border: 2px solid #ccc;
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+    <div class="container" id="mainContainer">
+        <h1>Math Tutor</h1>
+        <div class="problem-text" id="problemDisplay">What is 0 + 0?</div>
+        
+        <div class="status-msg" id="statusMessage"></div>
+
+        <div class="canvas-container">
+            <canvas id="drawCanvas" width="200" height="200"></canvas>
+            <div class="loading" id="loadingIndicator"></div>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn-primary" onclick="newProblem()">New Problem</button>
+            <button class="btn-secondary" onclick="clearCanvas()">Clear</button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentAnswer = 0;
+        let isDrawing = false;
+        let predictionTimer = null;
+        let hasDrawn = false;
+        const canvas = document.getElementById('drawCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusMsg = document.getElementById('statusMessage');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // Setup Canvas
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 12;
+        ctx.strokeStyle = 'black';
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Math Logic
+        function newProblem() {
+            const ans = Math.floor(Math.random() * 10); // 0-9
+            const a = Math.floor(Math.random() * (ans + 1));
+            const b = ans - a;
+            currentAnswer = ans;
+            
+            document.getElementById('problemDisplay').innerText = `What is ${a} + ${b}?`;
+            clearCanvas();
+            hideMessage();
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            hasDrawn = false;
+        }
+
+        function showMessage(msg, type) {
+            statusMsg.innerText = msg;
+            statusMsg.className = `status-msg show ${type}`;
+        }
+
+        function hideMessage() {
+            statusMsg.className = 'status-msg';
+        }
+
+        function triggerConfetti() {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        }
+
+        // Drawing Events
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startDrawing(e) {
+            e.preventDefault();
+            isDrawing = true;
+            hasDrawn = true;
+            const pos = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            
+            if(predictionTimer) clearTimeout(predictionTimer);
+        }
+
+        function draw(e) {
+            e.preventDefault();
+            if (!isDrawing) return;
+            const pos = getPos(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        function stopDrawing(e) {
+            if(e) e.preventDefault();
+            if (!isDrawing) return;
+            isDrawing = false;
+            ctx.closePath();
+            
+            // Trigger prediction after a short delay of no drawing
+            if(predictionTimer) clearTimeout(predictionTimer);
+            predictionTimer = setTimeout(predictImage, 800);
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        canvas.addEventListener('touchstart', startDrawing, {passive: false});
+        canvas.addEventListener('touchmove', draw, {passive: false});
+        canvas.addEventListener('touchend', stopDrawing);
+
+        // Prediction API Call
+        async function predictImage() {
+            if (!hasDrawn) return;
+            
+            loadingIndicator.style.display = 'block';
+            hideMessage();
+            
+            const imageData = canvas.toDataURL('image/png');
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+                
+                const data = await response.json();
+                loadingIndicator.style.display = 'none';
+
+                if (data.success) {
+                    const pred = parseInt(data.prediction);
+                    if (pred === currentAnswer) {
+                        showMessage('Correct! Great job!', 'success');
+                        triggerConfetti();
+                        setTimeout(() => {
+                            newProblem();
+                        }, 2500);
+                    } else {
+                        showMessage(`You drew a ${pred}. Try again!`, 'error');
+                    }
+                } else if (data.error === 'Canvas too empty') {
+                    // Ignore empty canvas
+                } else {
+                    showMessage('Oops, something went wrong!', 'error');
+                }
+            } catch (error) {
+                console.error("Prediction error:", error);
+                loadingIndicator.style.display = 'none';
+                showMessage('Oops, something went wrong!', 'error');
+            }
+        }
+
+        // Init
+        newProblem();
+    </script>
+</body>
+</html>
